@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Item } from '@/types';
 
-export default function ItemDetailPage() {
-  const { id } = useParams();
+function ItemDetailContent() {
+  const params = useParams();
+  const id = params?.id as string;
   const router = useRouter();
   const [item, setItem] = useState<Item | null>(null);
   const [startDate, setStartDate] = useState('');
@@ -14,6 +15,7 @@ export default function ItemDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!id) return;
     const fetchItem = async () => {
       const { data } = await supabase.from('items').select('*').eq('id', id).single();
       if (data) setItem(data);
@@ -25,7 +27,6 @@ export default function ItemDetailPage() {
   if (loading) return <p className="p-8 text-center">불러오는 중...</p>;
   if (!item) return <p className="p-8 text-center">상품을 찾을 수 없습니다.</p>;
 
-  // 대여 일수 계산 (시작일·종료일 모두 포함, 같은 날 = 1일)
   const calcDays = () => {
     if (!startDate || !endDate) return 0;
     const s = new Date(startDate);
@@ -51,7 +52,6 @@ export default function ItemDetailPage() {
       return alert('이미 예약중이거나 판매 완료된 상품입니다.');
     }
 
-    // 대여 날짜 검증 (한국 시간 날짜 기준)
     if (item.type === 'RENTAL') {
       const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
       if (!startDate || !endDate || days <= 0) {
@@ -68,7 +68,6 @@ export default function ItemDetailPage() {
       }
     }
 
-    // 중복 PENDING 요청 확인
     const { data: existing } = await supabase
       .from('trade_requests')
       .select('id')
@@ -96,7 +95,6 @@ export default function ItemDetailPage() {
 
   return (
     <main className="max-w-xl mx-auto p-6 bg-white border rounded-2xl shadow-sm mt-8 space-y-5">
-      {/* 기본 이미지 영역 */}
       <div className="w-full h-44 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-sm font-medium">
         [기본 상품 이미지 - {item.type === 'SALE' ? '중고판매' : '방학대여'}]
       </div>
@@ -158,5 +156,14 @@ export default function ItemDetailPage() {
         {item.type === 'SALE' ? '구매 요청 보내기' : '대여 요청 보내기'}
       </button>
     </main>
+  );
+}
+
+// Next.js 빌드 에러(CLIENT_HOOK_DYNAMIC) 방지를 위한 Suspense 감싸기
+export default function ItemDetailPage() {
+  return (
+    <Suspense fallback={<p className="p-8 text-center">페이지 로딩 중...</p>}>
+      <ItemDetailContent />
+    </Suspense>
   );
 }
